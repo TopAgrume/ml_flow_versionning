@@ -1,20 +1,17 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 import mlflow.exceptions
-from base_templates import Item, ModelItem, model_uri, next_model_uri
+from base_templates import Item, ModelItem, ModelManager, model_uri, next_model_uri
 import uvicorn
-
-import mlflow.sklearn
+import logging
 import numpy as np
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 # Set the MLflow tracking URI
 mlflow.set_tracking_uri("http://mlflow-server:8080")
 
-def load_model(model_uri: str):
-    return mlflow.sklearn.load_model(model_uri)
-
-current_model = load_model(model_uri)
-next_model = load_model(next_model_uri)
-
+model_manager = ModelManager(model_uri, next_model_uri)
 app = FastAPI()
 canary_p = 0.1
 
@@ -30,11 +27,11 @@ async def predict(item: Item):
     """
     X = np.array(item.data)
     if np.random.rand() < canary_p:
-        prediction = next_model.predict(X).tolist()
-        print("Called model: next model")
+        prediction = model_manager.next_model.predict(X).tolist()
+        logger.info("Called model: next model")
     else:
-        prediction = current_model.predict(X).tolist()
-        print("Called model: current model")
+        prediction = model_manager.current_model.predict(X).tolist()
+        logger.info("Called model: current model")
     return {"prediction": prediction}
 
 
@@ -46,27 +43,28 @@ async def update_model(item: ModelItem):
         item (ModelItem): an instance of ModelItem containing the model name and version to load
 
     Returns:
-        _type_: a message confirming the model update
+        dict: a message confirming the model update
+
+    Raises:
+        HTTPException: If a wrong next model path is given to `load_model`.
     """
-    global next_model
     model_uri = f"models:/{item.modelname}/{item.modelversion}"
-    try:
-        next_model = load_model(model_uri)
-        return {"message": "New next model loaded", "next model": model_uri}
-    except mlflow.exceptions.MlflowException as e:
-        return HTTPException(status_code=400, detail="Model does not exist")
+    model_manager.update_next_model(model_uri)
+    return {"message": "New next model loaded", "next model": model_uri}
 
 
 @app.get("/accept-next-model")
 async def accept_next_model():
-    global current_model, next_model, next_model_uri
+    """Accepts the next available model and sets it as the current model.
 
-    if next_model is None:
-        return HTTPException(status_code=400, detail="Next model does not exist")
-    else:
-        current_model = next_model
-        next_model = None
-        return {"message": "New model accepted", "model": next_model_uri}
+    Returns:
+        dict: A response containing a success message and the URI of the accepted model if successful.
+
+    Raises:
+        HTTPException: If `next_model` is `None`. In this case, we cannot set the next model as current model
+    """
+    next_model_uri = model_manager.switch_to_next_model()
+    return {"message": "New model accepted", "model": next_model_uri}
 
 
 if __name__ == "__main__":
