@@ -52,7 +52,7 @@ async def update_model(item: ModelItem):
     model_uri = f"models:/{item.modelname}/{item.modelversion}"
     try:
         next_model = load_model(model_uri)
-        return {"message": "New model loaded", "model": model_uri}
+        return {"message": "New next model loaded", "next model": model_uri}
     except mlflow.exceptions.MlflowException as e:
         return HTTPException(status_code=400, detail="Model does not exist")
 

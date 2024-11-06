@@ -5,4 +5,4 @@ curl -X POST "http://localhost:8000/update-model" \
      -d '{"modelname": "sk-learn-log-reg-model", "modelversion": "latest"}'
 
 # You should get:
-#   {"message":"New model loaded","model":"models:/sk-learn-log-reg-model/latest"}
+#   {"message":"New next model loaded","next model":"models:/sk-learn-log-reg-model/latest"}
