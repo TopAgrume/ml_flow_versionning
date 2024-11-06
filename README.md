@@ -16,7 +16,7 @@ This will:
 
 ## 2. Create and push the default model to MLflow
 
-After launching the MLflow server, you need to create and register the default model. Run the following Python script to train and push the model to the MLflow model registry:
+After launching the MLflow server, you need to create and register the default model and next model. Run the following Python script to train and push the model to the MLflow model registry:
 
 ```sh
 python run_and_push_model.py
@@ -24,7 +24,8 @@ python run_and_push_model.py
 
 This script:
 - Trains a simple scikit-learn logistic regression model.
-- Pushes the model to the MLflow server for future use.
+- Trains a simple scikit-learn random forest model.
+- Pushes the models to the MLflow server for future use.
 
 ## 3. Launch the web service
 

@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException
 import mlflow.exceptions
-from base_templates import Item, ModelItem
+from base_templates import Item, ModelItem, model_uri, next_model_uri
 import uvicorn
 
 import mlflow.sklearn
@@ -9,20 +9,17 @@ import numpy as np
 # Set the MLflow tracking URI
 mlflow.set_tracking_uri("http://mlflow-server:8080")
 
-model_name = "sk-learn-log-reg-model"
-model_version = "latest"
-model_uri = f"models:/{model_name}/{model_version}"
-
 def load_model(model_uri: str):
     return mlflow.sklearn.load_model(model_uri)
 
+current_model = load_model(model_uri)
+next_model = load_model(next_model_uri)
 
-model = load_model(model_uri)
 app = FastAPI()
-
+canary_p = 0.1
 
 @app.post("/predict")
-async def read_root(item: Item):
+async def predict(item: Item):
     """API endpoint to handle POST requests for predictions.
 
     Args:
@@ -32,12 +29,17 @@ async def read_root(item: Item):
         dict: a dictionary containing the prediction result
     """
     X = np.array(item.data)
-    prediction = model.predict(X).tolist()
+    if np.random.rand() < canary_p:
+        prediction = next_model.predict(X).tolist()
+        print("Called model: next model")
+    else:
+        prediction = current_model.predict(X).tolist()
+        print("Called model: current model")
     return {"prediction": prediction}
 
 
 @app.post("/update-model")
-async def read_root(item: ModelItem):
+async def update_model(item: ModelItem):
     """Creates an API endpoint to handle model updates dynamically.
 
     Args:
@@ -46,13 +48,25 @@ async def read_root(item: ModelItem):
     Returns:
         _type_: a message confirming the model update
     """
-    global model
+    global next_model
     model_uri = f"models:/{item.modelname}/{item.modelversion}"
     try:
-        model = load_model(model_uri)
+        next_model = load_model(model_uri)
         return {"message": "New model loaded", "model": model_uri}
     except mlflow.exceptions.MlflowException as e:
         return HTTPException(status_code=400, detail="Model does not exist")
+
+
+@app.get("/accept-next-model")
+async def accept_next_model():
+    global current_model, next_model, next_model_uri
+
+    if next_model is None:
+        return HTTPException(status_code=400, detail="Next model does not exist")
+    else:
+        current_model = next_model
+        next_model = None
+        return {"message": "New model accepted", "model": next_model_uri}
 
 
 if __name__ == "__main__":
