@@ -1,0 +1,25 @@
+name: "web_server_project"
+
+services:
+  mlflow-server:
+    image: ghcr.io/mlflow/mlflow:v2.17.2
+    command: ["mlflow", "server", "--host", "0.0.0.0", "--port", "8080"]
+    ports:
+      - "8080:8080"
+    networks:
+      - ai_flow
+
+  alexdr-iris-predict:
+    build: .
+    depends_on:
+      - mlflow-server
+    networks:
+      - ai_flow
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow-server:8080
+    ports:
+      - "8000:8000"
+
+networks:
+  ai_flow:
+    driver: bridge
